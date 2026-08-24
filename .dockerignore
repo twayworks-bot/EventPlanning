@@ -1,0 +1,29 @@
+# Ignore local Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.venv
+
+# Ignore Python compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore local SQLite databases to prevent lock/permission issues
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore Git directory and config
+.git/
+.gitignore
+
+# Ignore build artifacts and documentation
+Dockerfile
+README.md
+.dockerignore
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
