@@ -216,6 +216,11 @@ def delete_checklist_item(item_id):
     conn.close()
     return jsonify({'message': '항목이 삭제되었습니다.'})
 
+# 7. 헬스체크 API
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    return jsonify({'status': 'healthy'}), 200
+
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)
