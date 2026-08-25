@@ -7,6 +7,7 @@ DB_NAME = 'checklist.db'
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 # 1. DB 테이블 초기화 및 템플릿 데이터 시딩
@@ -25,6 +26,33 @@ def init_db():
         )
     ''')
     
+    # 템플릿 마스터 테이블
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS event_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # 템플릿 아이템 테이블
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS template_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            item_no INTEGER NOT NULL,
+            category_large TEXT DEFAULT '',
+            category_medium TEXT DEFAULT '',
+            category_small TEXT DEFAULT '',
+            content TEXT NOT NULL,
+            assignee TEXT DEFAULT '',
+            check_point TEXT DEFAULT '',
+            remark TEXT DEFAULT '',
+            due_date TEXT DEFAULT '',
+            FOREIGN KEY (template_id) REFERENCES event_templates (id) ON DELETE CASCADE
+        )
+    ''')
+    
     # 체크리스트 테이블
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS checklists (
@@ -36,9 +64,25 @@ def init_db():
             check_point TEXT,
             remark TEXT,
             is_completed INTEGER DEFAULT 0,
+            category_large TEXT DEFAULT '',
+            category_medium TEXT DEFAULT '',
+            category_small TEXT DEFAULT '',
+            due_date TEXT DEFAULT '',
             FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
         )
     ''')
+    
+    # 기존 DB 컬럼 추가 마이그레이션
+    cursor.execute("PRAGMA table_info(checklists)")
+    columns = [row['name'] for row in cursor.fetchall()]
+    if 'category_large' not in columns:
+        cursor.execute("ALTER TABLE checklists ADD COLUMN category_large TEXT DEFAULT ''")
+    if 'category_medium' not in columns:
+        cursor.execute("ALTER TABLE checklists ADD COLUMN category_medium TEXT DEFAULT ''")
+    if 'category_small' not in columns:
+        cursor.execute("ALTER TABLE checklists ADD COLUMN category_small TEXT DEFAULT ''")
+    if 'due_date' not in columns:
+        cursor.execute("ALTER TABLE checklists ADD COLUMN due_date TEXT DEFAULT ''")
     
     # 기본 행사가 없을 경우 2026 하계수련회 생성 및 초기 55개 데이터 등록
     cursor.execute("SELECT COUNT(*) FROM events")
@@ -108,10 +152,39 @@ def init_db():
         ]
         
         for item in fallback_data:
+            item_no = item[0]
+            cat_l, cat_m, cat_s, due = "", "", "", ""
+            
+            # 일부 샘플 데이터에 체계적인 카테고리와 due-date 지정
+            if item_no == 1:
+                cat_l, cat_m, cat_s, due = "행사운영", "기획", "총괄", "-30d"
+            elif item_no == 2:
+                cat_l, cat_m, cat_s, due = "행사운영", "접수", "등록", "-15d"
+            elif item_no in (3, 4):
+                cat_l, cat_m, cat_s, due = "행사운영", "접수", "행정", "-10d"
+            elif item_no in (6, 7, 8, 9):
+                cat_l, cat_m, cat_s, due = "수송", "차량배정", "버스", "-10d"
+            elif item_no in (10, 11, 12, 13):
+                cat_l, cat_m, cat_s, due = "행사운영", "숙소배정", "호실", "-5d"
+            elif item_no == 20:
+                cat_l, cat_m, cat_s, due = "방송", "계약", "음향/조명계약", "-3d"
+            elif item_no in (14, 25, 26, 27, 29, 33, 34, 44):
+                cat_l, cat_m, cat_s, due = "예배", "준비", "집회", "-1d"
+            elif item_no in (45, 46, 47, 48, 49):
+                cat_l, cat_m, cat_s, due = "방송", "장비", "미디어", "-2d"
+            elif item_no in (5, 15, 21, 22):
+                cat_l, cat_m, cat_s, due = "현장운영", "셋팅", "시설", "-1d"
+            elif item_no in (16, 28, 35, 38):
+                cat_l, cat_m, cat_s, due = "행사운영", "지원", "봉사", "0d"
+            elif item_no in (23, 24, 30, 31, 32, 36, 50, 51):
+                cat_l, cat_m, cat_s, due = "현장운영", "진행", "프로그램", "0d"
+            elif item_no in (17, 18, 19, 37, 52, 53, 54, 55):
+                cat_l, cat_m, cat_s, due = "수송", "귀가", "복귀", "+1d"
+
             cursor.execute('''
-                INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (default_event_id, item[0], item[1], item[2], item[3], item[4]))
+                INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark, category_large, category_medium, category_small, due_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (default_event_id, item[0], item[1], item[2], item[3], item[4], cat_l, cat_m, cat_s, due))
             
     conn.commit()
     conn.close()
@@ -138,6 +211,7 @@ def create_event():
     event_date = data.get('event_date', '')
     description = data.get('description', '')
     copy_template = data.get('copy_template', False)
+    template_id = data.get('template_id')
 
     if not title:
         return jsonify({'error': '행사명을 입력하세요.'}), 400
@@ -148,22 +222,133 @@ def create_event():
                    (title, event_date, description))
     new_event_id = cursor.lastrowid
 
-    # 이전 표준 템플릿(초기 55개) 복사 옵션
-    if copy_template:
+    # If copy_template is true and template_id is not specified, set to 'default'
+    if copy_template and not template_id:
+        template_id = 'default'
+
+    if template_id == 'default':
+        # Copy from event_id = 1
         cursor.execute('''
-            SELECT item_no, content, assignee, check_point, remark 
+            SELECT item_no, content, assignee, check_point, remark, category_large, category_medium, category_small, due_date 
             FROM checklists WHERE event_id = 1 ORDER BY item_no ASC
         ''')
         template_items = cursor.fetchall()
         for item in template_items:
             cursor.execute('''
-                INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark, is_completed)
-                VALUES (?, ?, ?, ?, ?, ?, 0)
-            ''', (new_event_id, item['item_no'], item['content'], item['assignee'], item['check_point'], item['remark']))
+                INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark, is_completed, category_large, category_medium, category_small, due_date)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+            ''', (new_event_id, item['item_no'], item['content'], item['assignee'], item['check_point'], item['remark'],
+                  item['category_large'], item['category_medium'], item['category_small'], item['due_date']))
+    elif template_id and template_id != 'none':
+        try:
+            tid = int(template_id)
+            cursor.execute('''
+                SELECT item_no, content, assignee, check_point, remark, category_large, category_medium, category_small, due_date
+                FROM template_items WHERE template_id = ? ORDER BY item_no ASC
+            ''', (tid,))
+            template_items = cursor.fetchall()
+            for item in template_items:
+                cursor.execute('''
+                    INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark, is_completed, category_large, category_medium, category_small, due_date)
+                    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                ''', (new_event_id, item['item_no'], item['content'], item['assignee'], item['check_point'], item['remark'],
+                      item['category_large'], item['category_medium'], item['category_small'], item['due_date']))
+        except ValueError:
+            pass
 
     conn.commit()
     conn.close()
     return jsonify({'message': '행사가 생성되었습니다.', 'id': new_event_id}), 201
+
+# --- 템플릿 관리 REST API ---
+
+# 2-1. 템플릿 목록 조회
+@app.route('/api/templates', methods=['GET'])
+def get_templates():
+    conn = get_db_connection()
+    templates = conn.execute('SELECT * FROM event_templates ORDER BY name ASC').fetchall()
+    conn.close()
+    return jsonify([dict(tx) for tx in templates])
+
+# 2-2. 특정 템플릿 상세 및 아이템 조회
+@app.route('/api/templates/<int:template_id>', methods=['GET'])
+def get_template_details(template_id):
+    conn = get_db_connection()
+    template = conn.execute('SELECT * FROM event_templates WHERE id = ?', (template_id,)).fetchone()
+    if not template:
+        conn.close()
+        return jsonify({'error': '템플릿을 찾을 수 없습니다.'}), 404
+    
+    items = conn.execute('SELECT * FROM template_items WHERE template_id = ? ORDER BY item_no ASC', (template_id,)).fetchall()
+    conn.close()
+    
+    res = dict(template)
+    res['items'] = [dict(ix) for ix in items]
+    return jsonify(res)
+
+# 2-3. 템플릿 등록 및 수정
+@app.route('/api/templates', methods=['POST'])
+def save_template():
+    data = request.json
+    name = data.get('name')
+    items = data.get('items', [])
+    
+    if not name:
+        return jsonify({'error': '템플릿 이름을 입력하세요.'}), 400
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # 동일한 이름의 템플릿이 이미 존재하는지 확인
+        cursor.execute('SELECT id FROM event_templates WHERE name = ?', (name,))
+        row = cursor.fetchone()
+        if row:
+            template_id = row['id']
+            # 기존 템플릿 아이템 전체 삭제
+            cursor.execute('DELETE FROM template_items WHERE template_id = ?', (template_id,))
+        else:
+            # 신규 템플릿 생성
+            cursor.execute('INSERT INTO event_templates (name) VALUES (?)', (name,))
+            template_id = cursor.lastrowid
+            
+        # 신규 아이템들 일괄 등록
+        for idx, item in enumerate(items):
+            cursor.execute('''
+                INSERT INTO template_items (template_id, item_no, category_large, category_medium, category_small, content, assignee, check_point, remark, due_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                template_id,
+                idx + 1,
+                item.get('category_large', ''),
+                item.get('category_medium', ''),
+                item.get('category_small', ''),
+                item.get('content', ''),
+                item.get('assignee', ''),
+                item.get('check_point', ''),
+                item.get('remark', ''),
+                item.get('due_date', '')
+            ))
+        conn.commit()
+        return jsonify({'message': '템플릿이 성공적으로 저장되었습니다.', 'id': template_id}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# 2-4. 템플릿 삭제
+@app.route('/api/templates/<int:template_id>', methods=['DELETE'])
+def delete_template(template_id):
+    conn = get_db_connection()
+    try:
+        conn.execute('DELETE FROM event_templates WHERE id = ?', (template_id,))
+        conn.commit()
+        return jsonify({'message': '템플릿이 삭제되었습니다.'}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
 # 3. 특정 행사의 체크리스트 조회
 @app.route('/api/events/<int:event_id>/checklists', methods=['GET'])
@@ -186,14 +371,49 @@ def add_checklist_item(event_id):
     next_no = max_no + 1
 
     cursor.execute('''
-        INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (event_id, next_no, data.get('content', ''), data.get('assignee', ''), data.get('check_point', ''), data.get('remark', '')))
+        INSERT INTO checklists (event_id, item_no, content, assignee, check_point, remark, category_large, category_medium, category_small, due_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (event_id, next_no, 
+          data.get('content', ''), 
+          data.get('assignee', ''), 
+          data.get('check_point', ''), 
+          data.get('remark', ''),
+          data.get('category_large', ''),
+          data.get('category_medium', ''),
+          data.get('category_small', ''),
+          data.get('due_date', '')))
     
     conn.commit()
     new_id = cursor.lastrowid
     conn.close()
     return jsonify({'message': '항목이 추가되었습니다.', 'id': new_id, 'item_no': next_no}), 201
+
+# 4-1. 체크리스트 항목 수정 (PUT)
+@app.route('/api/checklists/<int:item_id>', methods=['PUT'])
+def update_checklist_item(item_id):
+    data = request.json
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE checklists 
+        SET content = ?, assignee = ?, check_point = ?, remark = ?,
+            category_large = ?, category_medium = ?, category_small = ?, due_date = ?
+        WHERE id = ?
+    ''', (
+        data.get('content', ''),
+        data.get('assignee', ''),
+        data.get('check_point', ''),
+        data.get('remark', ''),
+        data.get('category_large', ''),
+        data.get('category_medium', ''),
+        data.get('category_small', ''),
+        data.get('due_date', ''),
+        item_id
+    ))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': '항목이 성공적으로 수정되었습니다.'})
 
 # 5. 체크리스트 완료 상태 토글
 @app.route('/api/checklists/<int:item_id>/toggle', methods=['POST'])

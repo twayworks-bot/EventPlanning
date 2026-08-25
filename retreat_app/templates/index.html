@@ -247,6 +247,127 @@
             font-size: 14px;
         }
         .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+        /* View Toggle Group */
+        .view-toggle-container {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+        
+        .view-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+        .view-btn:hover {
+            background-color: #f1f5f9;
+        }
+        .view-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Sortable Header */
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .sortable:hover {
+            background-color: #cbd5e1 !important;
+        }
+
+        /* Tree View Styling */
+        .tree-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .tree-large-group {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .tree-large-header {
+            background-color: #f1f5f9;
+            padding: 14px 20px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-main);
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tree-large-content {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .tree-medium-group {
+            background-color: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .tree-medium-header {
+            background-color: #e2e8f0;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+        .tree-medium-content {
+            padding: 12px;
+            background: white;
+            overflow-x: auto;
+        }
+
+        /* Inline Input Fields */
+        .edit-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+        }
+        .edit-input:focus {
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .btn-save, .btn-cancel {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            padding: 2px 4px;
+            transition: transform 0.1s;
+        }
+        .btn-save:hover { transform: scale(1.2); }
+        .btn-cancel:hover { transform: scale(1.2); }
+        
+        .badge-category {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-weight: normal;
+        }
     </style>
 </head>
 <body>
@@ -259,6 +380,7 @@
             <div class="event-selector-box">
                 <select id="eventSelect" class="select-input" onchange="loadChecklists()"></select>
                 <button class="btn btn-light" onclick="openEventModal()">➕ 행사 등록</button>
+                <button class="btn btn-light" onclick="openTemplateModal()">📋 템플릿 등록</button>
             </div>
         </div>
         <div class="progress-container">
@@ -280,27 +402,38 @@
                 <button class="filter-btn" onclick="setFilter('pending', this)">진행중</button>
                 <button class="filter-btn" onclick="setFilter('completed', this)">완료</button>
             </div>
+            <div class="view-toggle-container">
+                <button class="view-btn active" id="btnTableView" onclick="setViewMode('table')">📊 테이블 보기</button>
+                <button class="view-btn" id="btnTreeView" onclick="setViewMode('tree')">🌿 트리 보기</button>
+            </div>
         </div>
         <button class="btn btn-primary" onclick="openItemModal()">➕ 점검 항목 추가</button>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" id="tableViewContainer">
         <table>
             <thead>
                 <tr>
                     <th class="checkbox-cell">완료</th>
                     <th style="width: 60px;">NO</th>
+                    <th>대분류</th>
+                    <th>중분류</th>
+                    <th>소분류</th>
                     <th>내 용</th>
                     <th>담 당</th>
                     <th>체크 사항</th>
                     <th>비 고</th>
-                    <th style="width: 50px;">관리</th>
+                    <th style="width: 100px; cursor: pointer;" class="sortable" onclick="toggleSortDueDate()" title="클릭하여 due-date 정렬">due-date <span id="sortDueDateIcon">↕️</span></th>
+                    <th style="width: 80px;">관리</th>
                 </tr>
             </thead>
             <tbody id="tableBody"></tbody>
         </table>
         <div id="emptyMessage" class="empty-msg" style="display: none;">표시할 점검 항목이 없습니다.</div>
     </div>
+
+    <!-- 트리 보기 컨테이너 -->
+    <div id="treeViewContainer" class="tree-container" style="display: none;"></div>
 
     <!-- 행사 추가 모달 -->
     <div class="modal" id="eventModal">
@@ -319,9 +452,11 @@
                 <textarea id="newEventDesc" rows="2" placeholder="장소 및 세부 설명"></textarea>
             </div>
             <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
-                    <input type="checkbox" id="copyTemplateCheck" checked style="width:auto;"> 기본 체크리스트(55개 항목) 템플릿 복사
-                </label>
+                <label>템플릿 복사 선택</label>
+                <select id="eventTemplateSelect" class="select-input" style="width:100%; background:white; color:black; border:1px solid var(--border-color); border-radius:6px; padding:8px 12px; font-size:14px; outline:none;">
+                    <option value="none">선택 안 함 (빈 행사)</option>
+                    <option value="default" selected>기본 템플릿 (55개 항목)</option>
+                </select>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-light" style="color:#333; border:1px solid #ccc;" onclick="closeEventModal()">취소</button>
@@ -330,10 +465,99 @@
         </div>
     </div>
 
+    <!-- 템플릿 등록 및 관리 모달 -->
+    <div class="modal" id="templateModal">
+        <div class="modal-content" style="max-width: 950px; width: 95%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <span style="font-size: 18px; font-weight: 700;">🛠️ 행사 관리 템플릿 등록 및 관리</span>
+                <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">tsv(tab) 또는 csv(comma) 텍스트를 붙여넣어 템플릿을 생성하세요.</span>
+            </div>
+            
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                    <label>기존 템플릿 선택 (로딩 및 수정용)</label>
+                    <div style="display: flex; gap: 6px;">
+                        <select id="templateManageSelect" onchange="loadSelectedTemplate()" style="flex: 1; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: white; color: black; outline: none;">
+                            <option value="new">-- 새 템플릿 등록 --</option>
+                        </select>
+                        <button class="btn btn-delete" style="background: #fecaca; color: #dc2626; padding: 0 12px; border-radius: 6px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid #fca5a5;" id="btnDeleteTemplate" onclick="deleteSelectedTemplate()" title="선택한 템플릿 삭제" disabled>삭제</button>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                    <label>템플릿 이름</label>
+                    <input type="text" id="templateNameInput" placeholder="예: 표준 동계수련회 템플릿" style="height: 38px;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                <!-- Left: Textarea for Paste -->
+                <div style="flex: 1; min-width: 320px; display: flex; flex-direction: column;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">CSV / TSV 데이터 붙여넣기</label>
+                    <textarea id="templatePasteArea" rows="12" oninput="parseAndPreviewTemplate()" placeholder="이곳에 CSV 또는 TSV 형식의 체크리스트를 붙여넣으세요.
+(행 구분: 엔터, 열 구분: 탭 또는 콤마)
+
+예시 (8개 열 순서: 대분류, 중분류, 소분류, 내용, 담당자, 체크사항, 비고, due-date):
+행사운영	기획	총괄	전체일정관리	음수민, 고대섭		-30d
+행사운영	접수	등록	수련회 참석자 접수	정현옥	명단정리	-15d" style="width: 100%; flex: 1; min-height: 250px; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; font-family: monospace; outline: none; resize: vertical;"></textarea>
+                </div>
+
+                <!-- Right: Preview Table Container -->
+                <div style="flex: 1.5; min-width: 400px; display: flex; flex-direction: column; max-height: 350px; overflow-y: auto;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">실시간 테이블 프리뷰</label>
+                    <div class="table-container" style="flex: 1; overflow: auto; max-height: 320px; border: 1px solid var(--border-color); border-radius: 6px;">
+                        <table style="font-size: 12px; width: 100%;">
+                            <thead style="position: sticky; top: 0; z-index: 10;">
+                                <tr>
+                                    <th style="padding: 6px 8px; font-size: 12px;">대분류</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">중분류</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">소분류</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">내 용</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">담 당</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">체크 사항</th>
+                                    <th style="padding: 6px 8px; font-size: 12px;">비 고</th>
+                                    <th style="padding: 6px 8px; width: 70px; font-size: 12px;">due-date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="templatePreviewBody">
+                                <tr>
+                                    <td colspan="8" class="empty-msg" style="padding: 20px;">데이터를 입력하거나 붙여넣으세요.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 10px;">
+                <button class="btn btn-light" style="color:#333; border:1px solid #ccc;" onclick="closeTemplateModal()">닫기</button>
+                <button class="btn btn-primary" onclick="saveTemplate()">💾 템플릿 저장</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 점검 항목 추가 모달 -->
     <div class="modal" id="itemModal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 520px;">
             <div class="modal-header">새 점검 항목 추가</div>
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>대분류</label>
+                    <input type="text" id="newItemCategoryLarge" placeholder="예: 방송">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>중분류</label>
+                    <input type="text" id="newItemCategoryMedium" placeholder="예: 계약">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>소분류</label>
+                    <input type="text" id="newItemCategorySmall" placeholder="예: 음향/조명계약">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>due-date (남은 일정 대비 지정)</label>
+                <input type="text" id="newItemDueDate" placeholder="예: -3d, 0d, +1d 등">
+            </div>
             <div class="form-group">
                 <label>내용</label>
                 <input type="text" id="newItemContent" placeholder="점검 업무 내용">
@@ -360,6 +584,9 @@
     <script>
         let listData = [];
         let currentFilter = 'all';
+        let viewMode = 'table';
+        let sortByDueDate = null; // 'asc', 'desc', or null
+        let editingItemId = null;
 
         // 1. 행사 목록 로드
         async function loadEvents() {
@@ -390,47 +617,343 @@
             renderTable();
         }
 
-        // 3. 테이블 렌더링
-        function renderTable() {
-            const tbody = document.getElementById('tableBody');
-            const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
-            tbody.innerHTML = '';
+        // due-date 파싱 함수 (-3d -> -3, +1d -> 1, 0d -> 0, 미지정 -> 999999)
+        function parseDueDate(str) {
+            if (!str || str.trim() === '') return 999999;
+            const match = str.match(/([+-]?\d+)/);
+            if (match) {
+                return parseInt(match[1], 10);
+            }
+            return 999999;
+        }
 
-            let visibleCount = 0;
+        // due-date 소팅 상태 전환
+        function toggleSortDueDate() {
+            if (sortByDueDate === null) {
+                sortByDueDate = 'asc';
+            } else if (sortByDueDate === 'asc') {
+                sortByDueDate = 'desc';
+            } else {
+                sortByDueDate = null;
+            }
+            updateSortIcon();
+            renderTable();
+        }
 
-            listData.forEach(item => {
-                const isChecked = Boolean(item.is_completed);
+        // 소팅 아이콘 업데이트
+        function updateSortIcon() {
+            const iconSpan = document.getElementById('sortDueDateIcon');
+            if (!iconSpan) return;
+            if (sortByDueDate === 'asc') {
+                iconSpan.textContent = '🔻';
+            } else if (sortByDueDate === 'desc') {
+                iconSpan.textContent = '🔺';
+            } else {
+                iconSpan.textContent = '↕️';
+            }
+        }
 
-                if (currentFilter === 'completed' && !isChecked) return;
-                if (currentFilter === 'pending' && isChecked) return;
+        // 뷰 모드 설정
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+            if (mode === 'table') {
+                document.getElementById('btnTableView').classList.add('active');
+                document.getElementById('tableViewContainer').style.display = 'block';
+                document.getElementById('treeViewContainer').style.display = 'none';
+            } else {
+                document.getElementById('btnTreeView').classList.add('active');
+                document.getElementById('tableViewContainer').style.display = 'none';
+                document.getElementById('treeViewContainer').style.display = 'flex';
+            }
+            renderTable();
+        }
 
-                const searchTarget = `${item.item_no} ${item.content} ${item.assignee || ''} ${item.check_point || ''} ${item.remark || ''}`.toLowerCase();
-                if (keyword && !searchTarget.includes(keyword)) return;
+        // 인라인 편집 시작
+        function startInlineEdit(id) {
+            editingItemId = id;
+            renderTable();
+        }
 
-                visibleCount++;
+        // 인라인 편집 취소
+        function cancelInlineEdit() {
+            editingItemId = null;
+            renderTable();
+        }
 
-                const tr = document.createElement('tr');
-                if (isChecked) tr.classList.add('completed');
+        // 인라인 편집 저장
+        async function saveInlineEdit(id) {
+            const large = document.getElementById(`editLarge_${id}`).value.trim();
+            const medium = document.getElementById(`editMedium_${id}`).value.trim();
+            const small = document.getElementById(`editSmall_${id}`).value.trim();
+            const content = document.getElementById(`editContent_${id}`).value.trim();
+            const assignee = document.getElementById(`editAssignee_${id}`).value.trim();
+            const checkPoint = document.getElementById(`editCheckPoint_${id}`).value.trim();
+            const remark = document.getElementById(`editRemark_${id}`).value.trim();
+            const dueDate = document.getElementById(`editDueDate_${id}`).value.trim();
 
-                tr.innerHTML = `
-                    <td class="checkbox-cell">
-                        <input type="checkbox" class="custom-checkbox" 
-                            ${isChecked ? 'checked' : ''} 
-                            onchange="toggleCheck(${item.id}, this)">
-                    </td>
-                    <td><strong>${item.item_no}</strong></td>
-                    <td>${escapeHtml(item.content)}</td>
-                    <td>${item.assignee ? `<span class="badge badge-person">${escapeHtml(item.assignee)}</span>` : '-'}</td>
-                    <td>${item.check_point ? `<span class="status-badge">${escapeHtml(item.check_point)}</span>` : '-'}</td>
-                    <td style="color: var(--text-muted); font-size: 13px;">${escapeHtml(item.remark || '-')}</td>
-                    <td>
-                        <button class="btn-delete" title="삭제" onclick="deleteItem(${item.id})">✕</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+            if (!content) return alert('내용을 입력해주세요.');
+
+            const res = await fetch(`/api/checklists/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    category_large: large,
+                    category_medium: medium,
+                    category_small: small,
+                    content,
+                    assignee,
+                    check_point: checkPoint,
+                    remark,
+                    due_date: dueDate
+                })
             });
 
-            document.getElementById('emptyMessage').style.display = visibleCount === 0 ? 'block' : 'none';
+            if (res.ok) {
+                editingItemId = null;
+                await loadChecklists();
+            } else {
+                alert('수정에 실패했습니다.');
+            }
+        }
+
+        // 3. 테이블 렌더링 (및 트리 보기 렌더링 분기)
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const treeContainer = document.getElementById('treeViewContainer');
+            const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
+            tbody.innerHTML = '';
+            treeContainer.innerHTML = '';
+
+            // 3-1. 정렬 수행
+            let displayData = [...listData];
+            if (sortByDueDate === 'asc') {
+                displayData.sort((a, b) => parseDueDate(a.due_date) - parseDueDate(b.due_date));
+            } else if (sortByDueDate === 'desc') {
+                displayData.sort((a, b) => parseDueDate(b.due_date) - parseDueDate(a.due_date));
+            }
+
+            // 3-2. 검색어 필터링
+            displayData = displayData.filter(item => {
+                const isChecked = Boolean(item.is_completed);
+                if (currentFilter === 'completed' && !isChecked) return false;
+                if (currentFilter === 'pending' && isChecked) return false;
+
+                const searchTarget = `${item.item_no} ${item.content} ${item.assignee || ''} ${item.check_point || ''} ${item.remark || ''} ${item.category_large || ''} ${item.category_medium || ''} ${item.category_small || ''} ${item.due_date || ''}`.toLowerCase();
+                if (keyword && !searchTarget.includes(keyword)) return false;
+
+                return true;
+            });
+
+            if (viewMode === 'table') {
+                // --- 테이블 보기 렌더링 ---
+                displayData.forEach(item => {
+                    const isChecked = Boolean(item.is_completed);
+                    const tr = document.createElement('tr');
+                    if (isChecked) tr.classList.add('completed');
+
+                    if (item.id === editingItemId) {
+                        // 편집 모드 행
+                        tr.innerHTML = `
+                            <td class="checkbox-cell">
+                                <input type="checkbox" class="custom-checkbox" disabled ${isChecked ? 'checked' : ''}>
+                            </td>
+                            <td><strong>${item.item_no}</strong></td>
+                            <td><input type="text" class="edit-input" id="editLarge_${item.id}" value="${escapeHtml(item.category_large || '')}" placeholder="대분류"></td>
+                            <td><input type="text" class="edit-input" id="editMedium_${item.id}" value="${escapeHtml(item.category_medium || '')}" placeholder="중분류"></td>
+                            <td><input type="text" class="edit-input" id="editSmall_${item.id}" value="${escapeHtml(item.category_small || '')}" placeholder="소분류"></td>
+                            <td><input type="text" class="edit-input" id="editContent_${item.id}" value="${escapeHtml(item.content || '')}" placeholder="내용"></td>
+                            <td><input type="text" class="edit-input" id="editAssignee_${item.id}" value="${escapeHtml(item.assignee || '')}" placeholder="담당"></td>
+                            <td><input type="text" class="edit-input" id="editCheckPoint_${item.id}" value="${escapeHtml(item.check_point || '')}" placeholder="체크 사항"></td>
+                            <td><input type="text" class="edit-input" id="editRemark_${item.id}" value="${escapeHtml(item.remark || '')}" placeholder="비고"></td>
+                            <td><input type="text" class="edit-input" id="editDueDate_${item.id}" value="${escapeHtml(item.due_date || '')}" placeholder="-3d" style="text-align: center;"></td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn-save" title="저장" onclick="saveInlineEdit(${item.id})">💾</button>
+                                <button class="btn-cancel" title="취소" onclick="cancelInlineEdit()">❌</button>
+                            </td>
+                        `;
+                    } else {
+                        // 일반 모드 행
+                        tr.innerHTML = `
+                            <td class="checkbox-cell">
+                                <input type="checkbox" class="custom-checkbox" 
+                                    ${isChecked ? 'checked' : ''} 
+                                    onchange="toggleCheck(${item.id}, this)">
+                            </td>
+                            <td><strong>${item.item_no}</strong></td>
+                            <td>${item.category_large ? `<span class="badge badge-category">${escapeHtml(item.category_large)}</span>` : '-'}</td>
+                            <td>${item.category_medium ? `<span class="badge badge-category">${escapeHtml(item.category_medium)}</span>` : '-'}</td>
+                            <td>${item.category_small ? `<span class="badge badge-category" style="background-color:#fef3c7; color:#d97706;">${escapeHtml(item.category_small)}</span>` : '-'}</td>
+                            <td>${escapeHtml(item.content)}</td>
+                            <td>${item.assignee ? `<span class="badge badge-person">${escapeHtml(item.assignee)}</span>` : '-'}</td>
+                            <td>${item.check_point ? `<span class="status-badge">${escapeHtml(item.check_point)}</span>` : '-'}</td>
+                            <td style="color: var(--text-muted); font-size: 13px;">${escapeHtml(item.remark || '-')}</td>
+                            <td style="text-align: center; font-weight: bold; color: ${item.due_date && item.due_date.startsWith('-') ? '#ef4444' : '#10b981'};">
+                                ${escapeHtml(item.due_date || '-')}
+                            </td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn-delete" style="color: var(--primary-color); opacity: 0.8; margin-right: 8px;" title="편집" onclick="startInlineEdit(${item.id})">✏️</button>
+                                <button class="btn-delete" title="삭제" onclick="deleteItem(${item.id})">✕</button>
+                            </td>
+                        `;
+                    }
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('emptyMessage').style.display = displayData.length === 0 ? 'block' : 'none';
+
+            } else {
+                // --- 트리 보기 렌더링 ---
+                const groups = {};
+                displayData.forEach(item => {
+                    const l = item.category_large || '미분류';
+                    const m = item.category_medium || '미분류';
+                    if (!groups[l]) groups[l] = {};
+                    if (!groups[l][m]) groups[l][m] = [];
+                    groups[l][m].push(item);
+                });
+
+                const largeKeys = Object.keys(groups);
+                if (largeKeys.length === 0) {
+                    treeContainer.innerHTML = '<div class="empty-msg">표시할 점검 항목이 없습니다.</div>';
+                } else {
+                    largeKeys.sort((a, b) => {
+                        if (a === '미분류') return 1;
+                        if (b === '미분류') return -1;
+                        return a.localeCompare(b);
+                    });
+
+                    largeKeys.forEach(l => {
+                        const largeDetails = document.createElement('details');
+                        largeDetails.className = 'tree-large-group';
+                        largeDetails.open = true;
+
+                        const largeSummary = document.createElement('summary');
+                        largeSummary.className = 'tree-large-header';
+                        
+                        let lTotal = 0;
+                        let lCompleted = 0;
+                        Object.keys(groups[l]).forEach(m => {
+                            groups[l][m].forEach(item => {
+                                lTotal++;
+                                if (item.is_completed) lCompleted++;
+                            });
+                        });
+                        const lPercent = lTotal > 0 ? Math.round((lCompleted / lTotal) * 100) : 0;
+
+                        largeSummary.innerHTML = `📂 대분류: <strong>${escapeHtml(l)}</strong> <span style="font-size:12px; color:var(--text-muted); font-weight:normal; margin-left:10px;">(${lCompleted}/${lTotal} 항목, 완료율 ${lPercent}%)</span>`;
+                        largeDetails.appendChild(largeSummary);
+
+                        const largeContent = document.createElement('div');
+                        largeContent.className = 'tree-large-content';
+
+                        const mediumKeys = Object.keys(groups[l]);
+                        mediumKeys.sort((a, b) => {
+                            if (a === '미분류') return 1;
+                            if (b === '미분류') return -1;
+                            return a.localeCompare(b);
+                        });
+
+                        mediumKeys.forEach(m => {
+                            const mediumDetails = document.createElement('details');
+                            mediumDetails.className = 'tree-medium-group';
+                            mediumDetails.open = true;
+
+                            const mediumSummary = document.createElement('summary');
+                            mediumSummary.className = 'tree-medium-header';
+                            
+                            let mTotal = groups[l][m].length;
+                            let mCompleted = groups[l][m].filter(item => item.is_completed).length;
+
+                            mediumSummary.innerHTML = `📁 중분류: <strong>${escapeHtml(m)}</strong> <span style="font-size:12px; color:#64748b; font-weight:normal; margin-left:8px;">(${mCompleted}/${mTotal} 항목)</span>`;
+                            mediumDetails.appendChild(mediumSummary);
+
+                            const mediumContent = document.createElement('div');
+                            mediumContent.className = 'tree-medium-content';
+
+                            const table = document.createElement('table');
+                            table.innerHTML = `
+                                <thead>
+                                    <tr>
+                                        <th class="checkbox-cell">완료</th>
+                                        <th style="width: 50px;">NO</th>
+                                        <th style="width: 150px;">소분류</th>
+                                        <th>내 용</th>
+                                        <th>담 당</th>
+                                        <th>체크 사항</th>
+                                        <th>비 고</th>
+                                        <th style="width: 90px; text-align:center;">due-date</th>
+                                        <th style="width: 80px;">관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            `;
+                            const innerTbody = table.querySelector('tbody');
+
+                            groups[l][m].forEach(item => {
+                                const isChecked = Boolean(item.is_completed);
+                                const tr = document.createElement('tr');
+                                if (isChecked) tr.classList.add('completed');
+
+                                if (item.id === editingItemId) {
+                                    tr.innerHTML = `
+                                        <td class="checkbox-cell">
+                                            <input type="checkbox" class="custom-checkbox" disabled ${isChecked ? 'checked' : ''}>
+                                        </td>
+                                        <td><strong>${item.item_no}</strong></td>
+                                        <td>
+                                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                                <input type="text" class="edit-input" id="editLarge_${item.id}" value="${escapeHtml(item.category_large || '')}" placeholder="대분류" style="font-size:11px; padding:2px 4px;">
+                                                <input type="text" class="edit-input" id="editMedium_${item.id}" value="${escapeHtml(item.category_medium || '')}" placeholder="중분류" style="font-size:11px; padding:2px 4px;">
+                                                <input type="text" class="edit-input" id="editSmall_${item.id}" value="${escapeHtml(item.category_small || '')}" placeholder="소분류" style="font-size:11px; padding:2px 4px;">
+                                            </div>
+                                        </td>
+                                        <td><input type="text" class="edit-input" id="editContent_${item.id}" value="${escapeHtml(item.content || '')}" placeholder="내용"></td>
+                                        <td><input type="text" class="edit-input" id="editAssignee_${item.id}" value="${escapeHtml(item.assignee || '')}" placeholder="담당"></td>
+                                        <td><input type="text" class="edit-input" id="editCheckPoint_${item.id}" value="${escapeHtml(item.check_point || '')}" placeholder="체크 사항"></td>
+                                        <td><input type="text" class="edit-input" id="editRemark_${item.id}" value="${escapeHtml(item.remark || '')}" placeholder="비고"></td>
+                                        <td><input type="text" class="edit-input" id="editDueDate_${item.id}" value="${escapeHtml(item.due_date || '')}" placeholder="-3d" style="text-align: center;"></td>
+                                        <td style="white-space: nowrap;">
+                                            <button class="btn-save" title="저장" onclick="saveInlineEdit(${item.id})">💾</button>
+                                            <button class="btn-cancel" title="취소" onclick="cancelInlineEdit()">❌</button>
+                                        </td>
+                                    `;
+                                } else {
+                                    tr.innerHTML = `
+                                        <td class="checkbox-cell">
+                                            <input type="checkbox" class="custom-checkbox" 
+                                                ${isChecked ? 'checked' : ''} 
+                                                onchange="toggleCheck(${item.id}, this)">
+                                        </td>
+                                        <td><strong>${item.item_no}</strong></td>
+                                        <td>${item.category_small ? `<span class="badge badge-category" style="background-color:#fef3c7; color:#d97706;">${escapeHtml(item.category_small)}</span>` : '-'}</td>
+                                        <td>${escapeHtml(item.content)}</td>
+                                        <td>${item.assignee ? `<span class="badge badge-person">${escapeHtml(item.assignee)}</span>` : '-'}</td>
+                                        <td>${item.check_point ? `<span class="status-badge">${escapeHtml(item.check_point)}</span>` : '-'}</td>
+                                        <td style="color: var(--text-muted); font-size: 13px;">${escapeHtml(item.remark || '-')}</td>
+                                        <td style="text-align: center; font-weight: bold; color: ${item.due_date && item.due_date.startsWith('-') ? '#ef4444' : '#10b981'};">
+                                            ${escapeHtml(item.due_date || '-')}
+                                        </td>
+                                        <td style="white-space: nowrap;">
+                                            <button class="btn-delete" style="color: var(--primary-color); opacity: 0.8; margin-right: 8px;" title="편집" onclick="startInlineEdit(${item.id})">✏️</button>
+                                            <button class="btn-delete" title="삭제" onclick="deleteItem(${item.id})">✕</button>
+                                        </td>
+                                    `;
+                                }
+                                innerTbody.appendChild(tr);
+                            });
+
+                            mediumContent.appendChild(table);
+                            mediumDetails.appendChild(mediumContent);
+                            largeContent.appendChild(mediumDetails);
+                        });
+
+                        largeDetails.appendChild(largeContent);
+                        treeContainer.appendChild(largeDetails);
+                    });
+                }
+            }
+
             updateProgressBar();
         }
 
@@ -488,24 +1011,291 @@
         }
 
         // 모달 관리
-        function openEventModal() { document.getElementById('eventModal').style.display = 'flex'; }
+        function openEventModal() { 
+            document.getElementById('eventModal').style.display = 'flex'; 
+            loadTemplatesForSelector();
+        }
         function closeEventModal() { document.getElementById('eventModal').style.display = 'none'; }
         function openItemModal() { document.getElementById('itemModal').style.display = 'flex'; }
         function closeItemModal() { document.getElementById('itemModal').style.display = 'none'; }
+
+        // 템플릿 모달 관리 및 기능 구현
+        function openTemplateModal() {
+            document.getElementById('templateModal').style.display = 'flex';
+            loadTemplatesForSelector();
+            resetTemplateForm();
+        }
+
+        function closeTemplateModal() {
+            document.getElementById('templateModal').style.display = 'none';
+        }
+
+        function resetTemplateForm() {
+            document.getElementById('templateManageSelect').value = 'new';
+            document.getElementById('templateNameInput').value = '';
+            document.getElementById('templatePasteArea').value = '';
+            document.getElementById('btnDeleteTemplate').disabled = true;
+            parseAndPreviewTemplate();
+        }
+
+        async function loadTemplatesForSelector() {
+            try {
+                const res = await fetch('/api/templates');
+                const templates = await res.json();
+                
+                // 템플릿 관리 셀렉터 채우기
+                const manageSelect = document.getElementById('templateManageSelect');
+                if (manageSelect) {
+                    manageSelect.innerHTML = '<option value="new">-- 새 템플릿 등록 --</option>';
+                    templates.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t.id;
+                        opt.textContent = t.name;
+                        manageSelect.appendChild(opt);
+                    });
+                }
+
+                // 신규 행사 등록 셀렉터 채우기
+                const eventSelect = document.getElementById('eventTemplateSelect');
+                if (eventSelect) {
+                    eventSelect.innerHTML = `
+                        <option value="none">선택 안 함 (빈 행사)</option>
+                        <option value="default" selected>기본 템플릿 (55개 항목)</option>
+                    `;
+                    templates.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t.id;
+                        opt.textContent = t.name;
+                        eventSelect.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                console.error("템플릿 로딩 오류:", err);
+            }
+        }
+
+        async function loadSelectedTemplate() {
+            const id = document.getElementById('templateManageSelect').value;
+            const deleteBtn = document.getElementById('btnDeleteTemplate');
+            
+            if (id === 'new') {
+                resetTemplateForm();
+                return;
+            }
+
+            deleteBtn.disabled = false;
+
+            const res = await fetch(`/api/templates/${id}`);
+            if (res.ok) {
+                const template = await res.json();
+                document.getElementById('templateNameInput').value = template.name;
+                
+                const lines = [];
+                // 텍스트 영역에 머리글 포함해서 표시
+                lines.push("대분류\t중분류\t소분류\t내용\t담당자\t체크사항\t비고\tdue-date");
+                template.items.forEach(item => {
+                    lines.push([
+                        item.category_large || '',
+                        item.category_medium || '',
+                        item.category_small || '',
+                        item.content || '',
+                        item.assignee || '',
+                        item.check_point || '',
+                        item.remark || '',
+                        item.due_date || ''
+                    ].join('\t'));
+                });
+                
+                document.getElementById('templatePasteArea').value = lines.join('\n');
+                parseAndPreviewTemplate();
+            } else {
+                alert('템플릿을 불러오는데 실패했습니다.');
+            }
+        }
+
+        function parseCSVLine(line, delimiter) {
+            let result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                let char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === delimiter && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        function isHeaderRow(item) {
+            const keys = ['대분류', '중분류', '소분류', '내용', '내 용', '담당', '담 당', '체크', '비고', '비 고', 'due', 'category', 'content', 'assignee', 'remark'];
+            return keys.some(key => 
+                item.category_large.toLowerCase().includes(key) || 
+                item.category_medium.toLowerCase().includes(key) || 
+                item.content.toLowerCase().includes(key)
+            );
+        }
+
+        function parseAndPreviewTemplate() {
+            const pasteArea = document.getElementById('templatePasteArea');
+            const previewBody = document.getElementById('templatePreviewBody');
+            if (!pasteArea || !previewBody) return;
+
+            const text = pasteArea.value;
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+
+            if (lines.length === 0) {
+                previewBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-msg" style="padding: 20px;">데이터를 입력하거나 붙여넣으세요.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            lines.forEach((line, index) => {
+                const delimiter = line.includes('\t') ? '\t' : ',';
+                const cols = parseCSVLine(line, delimiter);
+                
+                const item = {
+                    category_large: cols[0] || '',
+                    category_medium: cols[1] || '',
+                    category_small: cols[2] || '',
+                    content: cols[3] || '',
+                    assignee: cols[4] || '',
+                    check_point: cols[5] || '',
+                    remark: cols[6] || '',
+                    due_date: cols[7] || ''
+                };
+
+                const isHeader = index === 0 && isHeaderRow(item);
+                const rowStyle = isHeader ? 'style="background-color: #f1f5f9; color: #94a3b8; font-style: italic;"' : '';
+
+                html += `
+                    <tr ${rowStyle}>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.category_large)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.category_medium)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.category_small)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">
+                            ${escapeHtml(item.content)}
+                            ${isHeader ? ' <span style="font-size: 10px; color: #64748b; font-weight: bold;">(머리글 제외)</span>' : ''}
+                        </td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.assignee)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.check_point)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${escapeHtml(item.remark)}</td>
+                        <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); text-align: center;">${escapeHtml(item.due_date)}</td>
+                    </tr>
+                `;
+            });
+
+            previewBody.innerHTML = html;
+        }
+
+        async function saveTemplate() {
+            const name = document.getElementById('templateNameInput').value.trim();
+            const pasteArea = document.getElementById('templatePasteArea');
+            if (!name) return alert('템플릿 이름을 입력하세요.');
+            if (!pasteArea) return;
+
+            const text = pasteArea.value;
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+
+            if (lines.length === 0) {
+                return alert('저장할 템플릿 데이터가 없습니다. CSV 또는 TSV 텍스트를 입력해주세요.');
+            }
+
+            const items = [];
+            lines.forEach((line, index) => {
+                const delimiter = line.includes('\t') ? '\t' : ',';
+                const cols = parseCSVLine(line, delimiter);
+                
+                const item = {
+                    category_large: cols[0] || '',
+                    category_medium: cols[1] || '',
+                    category_small: cols[2] || '',
+                    content: cols[3] || '',
+                    assignee: cols[4] || '',
+                    check_point: cols[5] || '',
+                    remark: cols[6] || '',
+                    due_date: cols[7] || ''
+                };
+
+                // 첫 줄이 머리글이면 제외
+                if (index === 0 && isHeaderRow(item)) {
+                    return;
+                }
+
+                if (item.content) {
+                    items.push(item);
+                }
+            });
+
+            if (items.length === 0) {
+                return alert('유효한 점검 항목 데이터가 없습니다. (내용 필드는 필수입니다)');
+            }
+
+            const res = await fetch('/api/templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, items })
+            });
+
+            if (res.ok) {
+                alert('템플릿이 저장되었습니다.');
+                await loadTemplatesForSelector();
+                const result = await res.json();
+                document.getElementById('templateManageSelect').value = result.id;
+                document.getElementById('btnDeleteTemplate').disabled = false;
+            } else {
+                const errData = await res.json();
+                alert(`저장 실패: ${errData.error || '알 수 없는 오류'}`);
+            }
+        }
+
+        async function deleteSelectedTemplate() {
+            const id = document.getElementById('templateManageSelect').value;
+            if (id === 'new') return;
+
+            if (!confirm('정말로 이 템플릿을 삭제하시겠습니까?')) return;
+
+            const res = await fetch(`/api/templates/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                alert('템플릿이 삭제되었습니다.');
+                resetTemplateForm();
+                await loadTemplatesForSelector();
+            } else {
+                alert('템플릿 삭제에 실패했습니다.');
+            }
+        }
 
         // 행사 등록 API 호출
         async function saveEvent() {
             const title = document.getElementById('newEventTitle').value.trim();
             const date = document.getElementById('newEventDate').value;
             const desc = document.getElementById('newEventDesc').value;
-            const copy = document.getElementById('copyTemplateCheck').checked;
+            const templateId = document.getElementById('eventTemplateSelect').value;
 
             if (!title) return alert('행사명을 입력하세요.');
 
             const res = await fetch('/api/events', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, event_date: date, description: desc, copy_template: copy })
+                body: JSON.stringify({ 
+                    title, 
+                    event_date: date, 
+                    description: desc, 
+                    template_id: templateId,
+                    copy_template: templateId === 'default'
+                })
             });
 
             if (res.ok) {
@@ -521,13 +1311,27 @@
             const assignee = document.getElementById('newItemAssignee').value.trim();
             const checkPoint = document.getElementById('newItemCheckPoint').value.trim();
             const remark = document.getElementById('newItemRemark').value.trim();
+            
+            const categoryLarge = document.getElementById('newItemCategoryLarge').value.trim();
+            const categoryMedium = document.getElementById('newItemCategoryMedium').value.trim();
+            const categorySmall = document.getElementById('newItemCategorySmall').value.trim();
+            const dueDate = document.getElementById('newItemDueDate').value.trim();
 
             if (!content) return alert('내용을 입력하세요.');
 
             const res = await fetch(`/api/events/${eventId}/checklists`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content, assignee, check_point: checkPoint, remark })
+                body: JSON.stringify({ 
+                    content, 
+                    assignee, 
+                    check_point: checkPoint, 
+                    remark,
+                    category_large: categoryLarge,
+                    category_medium: categoryMedium,
+                    category_small: categorySmall,
+                    due_date: dueDate
+                })
             });
 
             if (res.ok) {
@@ -536,6 +1340,11 @@
                 document.getElementById('newItemAssignee').value = '';
                 document.getElementById('newItemCheckPoint').value = '';
                 document.getElementById('newItemRemark').value = '';
+                
+                document.getElementById('newItemCategoryLarge').value = '';
+                document.getElementById('newItemCategoryMedium').value = '';
+                document.getElementById('newItemCategorySmall').value = '';
+                document.getElementById('newItemDueDate').value = '';
                 loadChecklists();
             }
         }
