@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV DB_NAME=/app/data/checklist.db
 
 # Update system packages and clean cache to keep the image small
 RUN apt-get update && apt-get upgrade -y && \
@@ -19,6 +20,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all code from retreat_app into /app
 COPY retreat_app/ /app/
+
+# Create directory for persistent SQLite database and declare it as a volume
+RUN mkdir -p /app/data
+VOLUME ["/app/data"]
 
 # Expose port (Flask runs on 5000 by default)
 EXPOSE 5000
