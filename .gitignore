@@ -150,3 +150,7 @@ Thumbs.db
 # Databases
 *.db
 *.sqlite
+
+# GitHub Sync Script & Private Configurations
+syncgithub.env
+syncgithub.py
