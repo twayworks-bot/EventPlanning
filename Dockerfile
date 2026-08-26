@@ -32,5 +32,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5s \
     CMD python -c "import requests; requests.get('http://localhost:5000/api/status')"
 
-# Run the application directly
-CMD ["python", "app.py"]
+# Run the application using Gunicorn after initializing the SQLite database
+CMD ["sh", "-c", "python -c 'import app; app.init_db()' && gunicorn --bind 0.0.0.0:5000 --workers 2 app:app"]
