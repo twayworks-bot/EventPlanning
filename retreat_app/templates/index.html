@@ -583,6 +583,12 @@
 
     <script>
         const API_PREFIX = '/planning';
+
+        function isMobile() {
+            const userAgentMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const isMobileWidth = window.innerWidth <= 768;
+            return userAgentMobile || isMobileWidth;
+        }
         let listData = [];
         let currentFilter = 'all';
         let viewMode = 'table';
@@ -720,6 +726,7 @@
 
         // 3. 테이블 렌더링 (및 트리 보기 렌더링 분기)
         function renderTable() {
+            const isMobileDevice = isMobile();
             const tbody = document.getElementById('tableBody');
             const treeContainer = document.getElementById('treeViewContainer');
             const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -779,7 +786,7 @@
                             <td class="checkbox-cell">
                                 <input type="checkbox" class="custom-checkbox" 
                                     ${isChecked ? 'checked' : ''} 
-                                    onchange="toggleCheck(${item.id}, this)">
+                                    ${isMobileDevice ? 'disabled' : `onchange="toggleCheck(${item.id}, this)"`}>
                             </td>
                             <td><strong>${item.item_no}</strong></td>
                             <td>${item.category_large ? `<span class="badge badge-category">${escapeHtml(item.category_large)}</span>` : '-'}</td>
@@ -792,10 +799,12 @@
                             <td style="text-align: center; font-weight: bold; color: ${item.due_date && item.due_date.startsWith('-') ? '#ef4444' : '#10b981'};">
                                 ${escapeHtml(item.due_date || '-')}
                             </td>
+                            ${isMobileDevice ? '' : `
                             <td style="white-space: nowrap;">
                                 <button class="btn-delete" style="color: var(--primary-color); opacity: 0.8; margin-right: 8px;" title="편집" onclick="startInlineEdit(${item.id})">✏️</button>
                                 <button class="btn-delete" title="삭제" onclick="deleteItem(${item.id})">✕</button>
                             </td>
+                            `}
                         `;
                     }
                     tbody.appendChild(tr);
@@ -884,7 +893,7 @@
                                         <th>체크 사항</th>
                                         <th>비 고</th>
                                         <th style="width: 90px; text-align:center;">due-date</th>
-                                        <th style="width: 80px;">관리</th>
+                                        ${isMobileDevice ? '' : '<th style="width: 80px;">관리</th>'}
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -924,7 +933,7 @@
                                         <td class="checkbox-cell">
                                             <input type="checkbox" class="custom-checkbox" 
                                                 ${isChecked ? 'checked' : ''} 
-                                                onchange="toggleCheck(${item.id}, this)">
+                                                ${isMobileDevice ? 'disabled' : `onchange="toggleCheck(${item.id}, this)"`}>
                                         </td>
                                         <td><strong>${item.item_no}</strong></td>
                                         <td>${item.category_small ? `<span class="badge badge-category" style="background-color:#fef3c7; color:#d97706;">${escapeHtml(item.category_small)}</span>` : '-'}</td>
@@ -935,10 +944,12 @@
                                         <td style="text-align: center; font-weight: bold; color: ${item.due_date && item.due_date.startsWith('-') ? '#ef4444' : '#10b981'};">
                                             ${escapeHtml(item.due_date || '-')}
                                         </td>
+                                        ${isMobileDevice ? '' : `
                                         <td style="white-space: nowrap;">
                                             <button class="btn-delete" style="color: var(--primary-color); opacity: 0.8; margin-right: 8px;" title="편집" onclick="startInlineEdit(${item.id})">✏️</button>
                                             <button class="btn-delete" title="삭제" onclick="deleteItem(${item.id})">✕</button>
                                         </td>
+                                        `}
                                     `;
                                 }
                                 innerTbody.appendChild(tr);
@@ -1355,8 +1366,38 @@
             return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
 
-        // 초기 로드
-        loadEvents();
+        // 반응형 UI 및 모바일 읽기 전용 감지 처리
+        function updateResponsiveUI() {
+            const mobile = isMobile();
+            
+            // 헤더 버튼 보이기/숨기기
+            const btnOpenEvent = document.querySelector('button[onclick="openEventModal()"]');
+            const btnOpenTemplate = document.querySelector('button[onclick="openTemplateModal()"]');
+            if (btnOpenEvent) btnOpenEvent.style.display = mobile ? 'none' : 'inline-block';
+            if (btnOpenTemplate) btnOpenTemplate.style.display = mobile ? 'none' : 'inline-block';
+
+            // 컨트롤 바 추가 버튼 보이기/숨기기
+            const btnOpenItem = document.querySelector('button[onclick="openItemModal()"]');
+            if (btnOpenItem) btnOpenItem.style.display = mobile ? 'none' : 'inline-block';
+
+            // 테이블 뷰 헤더의 '관리' 열 보이기/숨기기
+            const manageHeader = document.querySelector('#tableViewContainer th:last-child');
+            if (manageHeader) {
+                manageHeader.style.display = mobile ? 'none' : '';
+            }
+
+            renderTable();
+        }
+
+        // 초기화 및 이벤트 리스너 등록
+        window.addEventListener('resize', updateResponsiveUI);
+        
+        async function initApp() {
+            await loadEvents();
+            updateResponsiveUI();
+        }
+        
+        initApp();
     </script>
 </body>
 </html>
