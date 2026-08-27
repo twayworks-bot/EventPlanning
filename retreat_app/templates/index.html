@@ -733,6 +733,40 @@
             tbody.innerHTML = '';
             treeContainer.innerHTML = '';
 
+            // 3-0. 헤더 설정 (모바일 여부에 맞춰 컬럼 재구축)
+            const thead = document.querySelector('#tableViewContainer thead');
+            if (thead) {
+                if (isMobileDevice) {
+                    thead.innerHTML = `
+                        <tr>
+                            <th class="checkbox-cell">완료</th>
+                            <th>대분류</th>
+                            <th>내 용</th>
+                            <th>담 당</th>
+                            <th>체크 사항</th>
+                            <th style="width: 100px; cursor: pointer;" class="sortable" onclick="toggleSortDueDate()" title="클릭하여 due-date 정렬">due-date <span id="sortDueDateIcon">↕️</span></th>
+                        </tr>
+                    `;
+                } else {
+                    thead.innerHTML = `
+                        <tr>
+                            <th class="checkbox-cell">완료</th>
+                            <th style="width: 60px;">NO</th>
+                            <th>대분류</th>
+                            <th>중분류</th>
+                            <th>소분류</th>
+                            <th>내 용</th>
+                            <th>담 당</th>
+                            <th>체크 사항</th>
+                            <th>비 고</th>
+                            <th style="width: 100px; cursor: pointer;" class="sortable" onclick="toggleSortDueDate()" title="클릭하여 due-date 정렬">due-date <span id="sortDueDateIcon">↕️</span></th>
+                            <th style="width: 80px;">관리</th>
+                        </tr>
+                    `;
+                }
+                updateSortIcon();
+            }
+
             // 3-1. 정렬 수행
             let displayData = [...listData];
             if (sortByDueDate === 'asc') {
@@ -760,7 +794,21 @@
                     const tr = document.createElement('tr');
                     if (isChecked) tr.classList.add('completed');
 
-                    if (item.id === editingItemId) {
+                    if (isMobileDevice) {
+                        // 모바일 최소보기 (완료여부 | 대분류 | 내용 | 담당 | 체크사항 | due-date)
+                        tr.innerHTML = `
+                            <td class="checkbox-cell">
+                                <input type="checkbox" class="custom-checkbox" disabled ${isChecked ? 'checked' : ''}>
+                            </td>
+                            <td>${item.category_large ? `<span class="badge badge-category">${escapeHtml(item.category_large)}</span>` : '-'}</td>
+                            <td>${escapeHtml(item.content)}</td>
+                            <td>${item.assignee ? `<span class="badge badge-person">${escapeHtml(item.assignee)}</span>` : '-'}</td>
+                            <td>${item.check_point ? `<span class="status-badge">${escapeHtml(item.check_point)}</span>` : '-'}</td>
+                            <td style="text-align: center; font-weight: bold; color: ${item.due_date && item.due_date.startsWith('-') ? '#ef4444' : '#10b981'};">
+                                ${escapeHtml(item.due_date || '-')}
+                            </td>
+                        `;
+                    } else if (item.id === editingItemId) {
                         // 편집 모드 행
                         tr.innerHTML = `
                             <td class="checkbox-cell">
@@ -1380,10 +1428,26 @@
             const btnOpenItem = document.querySelector('button[onclick="openItemModal()"]');
             if (btnOpenItem) btnOpenItem.style.display = mobile ? 'none' : 'inline-block';
 
-            // 테이블 뷰 헤더의 '관리' 열 보이기/숨기기
-            const manageHeader = document.querySelector('#tableViewContainer th:last-child');
-            if (manageHeader) {
-                manageHeader.style.display = mobile ? 'none' : '';
+            // 뷰 토글 영역 제어 (모바일은 테이블 보기만 강제 지원)
+            const viewToggle = document.querySelector('.view-toggle-container');
+            if (mobile) {
+                if (viewToggle) viewToggle.style.display = 'none';
+                viewMode = 'table';
+                document.getElementById('tableViewContainer').style.display = 'block';
+                document.getElementById('treeViewContainer').style.display = 'none';
+            } else {
+                if (viewToggle) viewToggle.style.display = 'flex';
+                // 원래 뷰 셋팅값 복원
+                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                if (viewMode === 'table') {
+                    document.getElementById('btnTableView').classList.add('active');
+                    document.getElementById('tableViewContainer').style.display = 'block';
+                    document.getElementById('treeViewContainer').style.display = 'none';
+                } else {
+                    document.getElementById('btnTreeView').classList.add('active');
+                    document.getElementById('tableViewContainer').style.display = 'none';
+                    document.getElementById('treeViewContainer').style.display = 'flex';
+                }
             }
 
             renderTable();
