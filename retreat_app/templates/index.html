@@ -582,6 +582,7 @@
     </div>
 
     <script>
+        const API_PREFIX = '/planning';
         let listData = [];
         let currentFilter = 'all';
         let viewMode = 'table';
@@ -590,7 +591,7 @@
 
         // 1. 행사 목록 로드
         async function loadEvents() {
-            const res = await fetch('/api/events');
+            const res = await fetch(`${API_PREFIX}/api/events`);
             const events = await res.json();
             const select = document.getElementById('eventSelect');
             select.innerHTML = '';
@@ -612,7 +613,7 @@
             const eventId = document.getElementById('eventSelect').value;
             if (!eventId) return;
 
-            const res = await fetch(`/api/events/${eventId}/checklists`);
+            const res = await fetch(`${API_PREFIX}/api/events/${eventId}/checklists`);
             listData = await res.json();
             renderTable();
         }
@@ -694,7 +695,7 @@
 
             if (!content) return alert('내용을 입력해주세요.');
 
-            const res = await fetch(`/api/checklists/${id}`, {
+            const res = await fetch(`${API_PREFIX}/api/checklists/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -968,7 +969,7 @@
             const target = listData.find(d => d.id === id);
             if (target) target.is_completed = isCompleted ? 1 : 0;
 
-            await fetch(`/api/checklists/${id}/toggle`, {
+            await fetch(`${API_PREFIX}/api/checklists/${id}/toggle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_completed: isCompleted })
@@ -981,7 +982,7 @@
         // 5. 항목 삭제
         async function deleteItem(id) {
             if (!confirm('해당 점검 항목을 삭제하시겠습니까?')) return;
-            await fetch(`/api/checklists/${id}`, { method: 'DELETE' });
+            await fetch(`${API_PREFIX}/api/checklists/${id}`, { method: 'DELETE' });
             listData = listData.filter(d => d.id !== id);
             renderTable();
         }
@@ -1040,7 +1041,7 @@
 
         async function loadTemplatesForSelector() {
             try {
-                const res = await fetch('/api/templates');
+                const res = await fetch(`${API_PREFIX}/api/templates`);
                 const templates = await res.json();
                 
                 // 템플릿 관리 셀렉터 채우기
@@ -1085,7 +1086,7 @@
 
             deleteBtn.disabled = false;
 
-            const res = await fetch(`/api/templates/${id}`);
+            const res = await fetch(`${API_PREFIX}/api/templates/${id}`);
             if (res.ok) {
                 const template = await res.json();
                 document.getElementById('templateNameInput').value = template.name;
@@ -1240,7 +1241,7 @@
                 return alert('유효한 점검 항목 데이터가 없습니다. (내용 필드는 필수입니다)');
             }
 
-            const res = await fetch('/api/templates', {
+            const res = await fetch(`${API_PREFIX}/api/templates`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, items })
@@ -1264,7 +1265,7 @@
 
             if (!confirm('정말로 이 템플릿을 삭제하시겠습니까?')) return;
 
-            const res = await fetch(`/api/templates/${id}`, {
+            const res = await fetch(`${API_PREFIX}/api/templates/${id}`, {
                 method: 'DELETE'
             });
 
@@ -1286,7 +1287,7 @@
 
             if (!title) return alert('행사명을 입력하세요.');
 
-            const res = await fetch('/api/events', {
+            const res = await fetch(`${API_PREFIX}/api/events`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -1319,7 +1320,7 @@
 
             if (!content) return alert('내용을 입력하세요.');
 
-            const res = await fetch(`/api/events/${eventId}/checklists`, {
+            const res = await fetch(`${API_PREFIX}/api/events/${eventId}/checklists`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

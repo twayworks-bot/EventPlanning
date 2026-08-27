@@ -41,8 +41,13 @@ class RetreatAppTestCase(unittest.TestCase):
         self.assertEqual(checklist_count, 55)
         conn.close()
 
+    def test_root_redirect(self):
+        response = self.app.get('/')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], '/planning/')
+
     def test_get_events(self):
-        response = self.app.get('/api/events')
+        response = self.app.get('/planning/api/events')
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(data), 1)
@@ -55,7 +60,7 @@ class RetreatAppTestCase(unittest.TestCase):
             'description': '겨울 수련회 설명',
             'copy_template': False
         }
-        response = self.app.post('/api/events', 
+        response = self.app.post('/planning/api/events', 
                                  data=json.dumps(new_event), 
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -80,7 +85,7 @@ class RetreatAppTestCase(unittest.TestCase):
             'description': '가을 수련회 설명',
             'copy_template': True
         }
-        response = self.app.post('/api/events', 
+        response = self.app.post('/planning/api/events', 
                                  data=json.dumps(new_event), 
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -95,7 +100,7 @@ class RetreatAppTestCase(unittest.TestCase):
         conn.close()
 
     def test_get_checklists(self):
-        response = self.app.get('/api/events/1/checklists')
+        response = self.app.get('/planning/api/events/1/checklists')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertEqual(len(data), 55)
@@ -113,7 +118,7 @@ class RetreatAppTestCase(unittest.TestCase):
             'category_small': '테스트소분류',
             'due_date': '-5d'
         }
-        response = self.app.post('/api/events/1/checklists',
+        response = self.app.post('/planning/api/events/1/checklists',
                                  data=json.dumps(item_data),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -151,7 +156,7 @@ class RetreatAppTestCase(unittest.TestCase):
             'category_small': '수정소분류',
             'due_date': '-3d'
         }
-        response = self.app.put(f'/api/checklists/{item_id}',
+        response = self.app.put(f'/planning/api/checklists/{item_id}',
                                 data=json.dumps(update_data),
                                 content_type='application/json')
         self.assertEqual(response.status_code, 200)
@@ -184,7 +189,7 @@ class RetreatAppTestCase(unittest.TestCase):
 
         # Toggle to completed
         toggle_data = {'is_completed': True}
-        response = self.app.post(f'/api/checklists/{item_id}/toggle',
+        response = self.app.post(f'/planning/api/checklists/{item_id}/toggle',
                                  data=json.dumps(toggle_data),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 200)
@@ -205,7 +210,7 @@ class RetreatAppTestCase(unittest.TestCase):
         item_id = cursor.fetchone()['id']
         conn.close()
 
-        response = self.app.delete(f'/api/checklists/{item_id}')
+        response = self.app.delete(f'/planning/api/checklists/{item_id}')
         self.assertEqual(response.status_code, 200)
 
         # Verify deleted in database
@@ -216,7 +221,7 @@ class RetreatAppTestCase(unittest.TestCase):
         conn.close()
 
     def test_get_templates_empty(self):
-        response = self.app.get('/api/templates')
+        response = self.app.get('/planning/api/templates')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertEqual(len(data), 0)
@@ -249,7 +254,7 @@ class RetreatAppTestCase(unittest.TestCase):
             ]
         }
         
-        response = self.app.post('/api/templates',
+        response = self.app.post('/planning/api/templates',
                                  data=json.dumps(template_payload),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -258,14 +263,14 @@ class RetreatAppTestCase(unittest.TestCase):
         template_id = data['id']
 
         # Get all templates
-        response = self.app.get('/api/templates')
+        response = self.app.get('/planning/api/templates')
         self.assertEqual(response.status_code, 200)
         templates_list = json.loads(response.data)
         self.assertEqual(len(templates_list), 1)
         self.assertEqual(templates_list[0]['name'], '겨울 수련회 표준 템플릿')
 
         # Get single template details
-        response = self.app.get(f'/api/templates/{template_id}')
+        response = self.app.get(f'/planning/api/templates/{template_id}')
         self.assertEqual(response.status_code, 200)
         details = json.loads(response.data)
         self.assertEqual(details['name'], '겨울 수련회 표준 템플릿')
@@ -290,7 +295,7 @@ class RetreatAppTestCase(unittest.TestCase):
                 }
             ]
         }
-        response = self.app.post('/api/templates',
+        response = self.app.post('/planning/api/templates',
                                  data=json.dumps(template_payload),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -303,14 +308,14 @@ class RetreatAppTestCase(unittest.TestCase):
             'description': '강촌 가평 엠티',
             'template_id': template_id
         }
-        response = self.app.post('/api/events',
+        response = self.app.post('/planning/api/events',
                                  data=json.dumps(new_event),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 201)
         event_id = json.loads(response.data)['id']
 
         # 3. Verify checklist items were correctly copied
-        response = self.app.get(f'/api/events/{event_id}/checklists')
+        response = self.app.get(f'/planning/api/events/{event_id}/checklists')
         self.assertEqual(response.status_code, 200)
         checklists = json.loads(response.data)
         self.assertEqual(len(checklists), 1)
@@ -324,21 +329,21 @@ class RetreatAppTestCase(unittest.TestCase):
             'name': '삭제 대상 템플릿',
             'items': [{'content': '임시 과업'}]
         }
-        response = self.app.post('/api/templates',
+        response = self.app.post('/planning/api/templates',
                                  data=json.dumps(template_payload),
                                  content_type='application/json')
         template_id = json.loads(response.data)['id']
 
         # Verify template exists
-        response = self.app.get(f'/api/templates/{template_id}')
+        response = self.app.get(f'/planning/api/templates/{template_id}')
         self.assertEqual(response.status_code, 200)
 
         # 2. Delete template
-        response = self.app.delete(f'/api/templates/{template_id}')
+        response = self.app.delete(f'/planning/api/templates/{template_id}')
         self.assertEqual(response.status_code, 200)
 
         # 3. Verify deleted (GET details returns 404)
-        response = self.app.get(f'/api/templates/{template_id}')
+        response = self.app.get(f'/planning/api/templates/{template_id}')
         self.assertEqual(response.status_code, 404)
 
         # Verify cascade deletion of template_items in database

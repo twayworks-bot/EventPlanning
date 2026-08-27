@@ -1,8 +1,10 @@
 import os
 import sqlite3
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Blueprint, redirect
 
 app = Flask(__name__)
+planning_bp = Blueprint('planning', __name__)
+
 DB_NAME = os.environ.get('DB_NAME', 'checklist.db')
 
 def get_db_connection():
@@ -193,11 +195,15 @@ def init_db():
 # --- 라우트 및 REST API ---
 
 @app.route('/')
+def root_redirect():
+    return redirect('/planning/', code=302)
+
+@planning_bp.route('/')
 def index():
     return render_template('index.html')
 
 # 1. 행사 목록 조회
-@app.route('/api/events', methods=['GET'])
+@planning_bp.route('/api/events', methods=['GET'])
 def get_events():
     conn = get_db_connection()
     events = conn.execute('SELECT * FROM events ORDER BY id DESC').fetchall()
@@ -205,7 +211,7 @@ def get_events():
     return jsonify([dict(ix) for ix in events])
 
 # 2. 신규 행사 등록
-@app.route('/api/events', methods=['POST'])
+@planning_bp.route('/api/events', methods=['POST'])
 def create_event():
     data = request.json
     title = data.get('title')
@@ -264,7 +270,7 @@ def create_event():
 # --- 템플릿 관리 REST API ---
 
 # 2-1. 템플릿 목록 조회
-@app.route('/api/templates', methods=['GET'])
+@planning_bp.route('/api/templates', methods=['GET'])
 def get_templates():
     conn = get_db_connection()
     templates = conn.execute('SELECT * FROM event_templates ORDER BY name ASC').fetchall()
@@ -272,7 +278,7 @@ def get_templates():
     return jsonify([dict(tx) for tx in templates])
 
 # 2-2. 특정 템플릿 상세 및 아이템 조회
-@app.route('/api/templates/<int:template_id>', methods=['GET'])
+@planning_bp.route('/api/templates/<int:template_id>', methods=['GET'])
 def get_template_details(template_id):
     conn = get_db_connection()
     template = conn.execute('SELECT * FROM event_templates WHERE id = ?', (template_id,)).fetchone()
@@ -288,7 +294,7 @@ def get_template_details(template_id):
     return jsonify(res)
 
 # 2-3. 템플릿 등록 및 수정
-@app.route('/api/templates', methods=['POST'])
+@planning_bp.route('/api/templates', methods=['POST'])
 def save_template():
     data = request.json
     name = data.get('name')
@@ -338,7 +344,7 @@ def save_template():
         conn.close()
 
 # 2-4. 템플릿 삭제
-@app.route('/api/templates/<int:template_id>', methods=['DELETE'])
+@planning_bp.route('/api/templates/<int:template_id>', methods=['DELETE'])
 def delete_template(template_id):
     conn = get_db_connection()
     try:
@@ -352,7 +358,7 @@ def delete_template(template_id):
         conn.close()
 
 # 3. 특정 행사의 체크리스트 조회
-@app.route('/api/events/<int:event_id>/checklists', methods=['GET'])
+@planning_bp.route('/api/events/<int:event_id>/checklists', methods=['GET'])
 def get_checklists(event_id):
     conn = get_db_connection()
     items = conn.execute('SELECT * FROM checklists WHERE event_id = ? ORDER BY item_no ASC', (event_id,)).fetchall()
@@ -360,7 +366,7 @@ def get_checklists(event_id):
     return jsonify([dict(ix) for ix in items])
 
 # 4. 체크리스트 항목 추가
-@app.route('/api/events/<int:event_id>/checklists', methods=['POST'])
+@planning_bp.route('/api/events/<int:event_id>/checklists', methods=['POST'])
 def add_checklist_item(event_id):
     data = request.json
     conn = get_db_connection()
@@ -390,7 +396,7 @@ def add_checklist_item(event_id):
     return jsonify({'message': '항목이 추가되었습니다.', 'id': new_id, 'item_no': next_no}), 201
 
 # 4-1. 체크리스트 항목 수정 (PUT)
-@app.route('/api/checklists/<int:item_id>', methods=['PUT'])
+@planning_bp.route('/api/checklists/<int:item_id>', methods=['PUT'])
 def update_checklist_item(item_id):
     data = request.json
     conn = get_db_connection()
@@ -417,7 +423,7 @@ def update_checklist_item(item_id):
     return jsonify({'message': '항목이 성공적으로 수정되었습니다.'})
 
 # 5. 체크리스트 완료 상태 토글
-@app.route('/api/checklists/<int:item_id>/toggle', methods=['POST'])
+@planning_bp.route('/api/checklists/<int:item_id>/toggle', methods=['POST'])
 def toggle_checklist(item_id):
     data = request.json
     is_completed = 1 if data.get('is_completed') else 0
@@ -429,7 +435,7 @@ def toggle_checklist(item_id):
     return jsonify({'message': '상태가 업데이트되었습니다.', 'is_completed': is_completed})
 
 # 6. 체크리스트 항목 삭제
-@app.route('/api/checklists/<int:item_id>', methods=['DELETE'])
+@planning_bp.route('/api/checklists/<int:item_id>', methods=['DELETE'])
 def delete_checklist_item(item_id):
     conn = get_db_connection()
     conn.execute('DELETE FROM checklists WHERE id = ?', (item_id,))
@@ -438,9 +444,11 @@ def delete_checklist_item(item_id):
     return jsonify({'message': '항목이 삭제되었습니다.'})
 
 # 7. 헬스체크 API
-@app.route('/api/status', methods=['GET'])
+@planning_bp.route('/api/status', methods=['GET'])
 def get_status():
     return jsonify({'status': 'healthy'}), 200
+
+app.register_blueprint(planning_bp, url_prefix='/planning')
 
 if __name__ == '__main__':
     init_db()
